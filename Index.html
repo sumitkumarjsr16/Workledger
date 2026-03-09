@@ -1,895 +1,180 @@
-import { useState, useMemo, useRef, useEffect } from “react”;
+<!DOCTYPE html>
 
-const DAYS = [“Mon”, “Tue”, “Wed”, “Thu”, “Fri”, “Sat”, “Sun”];
-const MONTHS = [“Jan”,“Feb”,“Mar”,“Apr”,“May”,“Jun”,“Jul”,“Aug”,“Sep”,“Oct”,“Nov”,“Dec”];
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>WorkLedger — Deploy Guide</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#0a0a0f;color:#e2e8f0;font-family:'DM Mono',monospace;min-height:100vh;padding:40px 20px}
+  .wrap{max-width:760px;margin:0 auto}
+  .logo{font-family:'Syne',sans-serif;font-size:32px;font-weight:800;letter-spacing:-1px;margin-bottom:6px}
+  .logo span{color:#4ade80}
+  .subtitle{font-size:11px;color:#4a5568;letter-spacing:3px;margin-bottom:40px}
+  .intro{background:#0d1f15;border:1px solid #1a3a25;border-radius:12px;padding:20px 24px;margin-bottom:40px;font-size:13px;line-height:1.7;color:#a0aec0}
+  .intro strong{color:#4ade80}
+  .steps{display:flex;flex-direction:column;gap:24px}
+  .step{background:#0d0d14;border:1px solid #1a1a2e;border-radius:12px;overflow:hidden}
+  .step-header{display:flex;align-items:center;gap:16px;padding:18px 24px;border-bottom:1px solid #1a1a2e}
+  .step-num{width:36px;height:36px;border-radius:50%;background:#1a3a1a;border:1px solid #4ade80;color:#4ade80;font-family:'Syne',sans-serif;font-size:16px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .step-title{font-family:'Syne',sans-serif;font-size:16px;font-weight:700}
+  .step-body{padding:20px 24px;font-size:13px;line-height:1.8;color:#a0aec0}
+  .step-body ol{padding-left:20px;margin:10px 0}
+  .step-body li{margin-bottom:8px}
+  .step-body strong{color:#e2e8f0}
+  .step-body a{color:#4ade80;text-decoration:none}
+  .step-body a:hover{text-decoration:underline}
+  .tag{display:inline-block;background:#1a2a3a;border:1px solid #2a3a4a;color:#60a5fa;padding:2px 8px;border-radius:4px;font-size:11px;margin:0 2px}
+  .code{background:#111118;border:1px solid #1a1a2e;border-radius:8px;padding:14px 16px;font-family:'DM Mono',monospace;font-size:12px;color:#4ade80;margin:12px 0;white-space:pre;overflow-x:auto;line-height:1.6}
+  .note{background:#1a1a3a;border-left:3px solid #818cf8;border-radius:0 8px 8px 0;padding:12px 16px;margin-top:12px;font-size:12px;color:#818cf8}
+  .highlight{background:#1a3a1a;border:1px solid #4ade8040;border-radius:8px;padding:14px 16px;margin:12px 0;font-size:12px;color:#4ade80}
+  .img-placeholder{background:#111118;border:1px dashed #2a2a3a;border-radius:8px;padding:20px;text-align:center;color:#4a5568;font-size:11px;margin:12px 0}
+  .final{background:#0d1f15;border:1px solid #4ade8040;border-radius:12px;padding:24px;margin-top:40px;text-align:center}
+  .final .url{font-family:'Syne',sans-serif;font-size:20px;font-weight:700;color:#4ade80;margin:12px 0}
+  .final p{font-size:12px;color:#4a5568;margin-top:8px}
+  .badge{display:inline-flex;align-items:center;gap:6px;background:#1a2a1a;border:1px solid #4ade8040;border-radius:20px;padding:6px 14px;font-size:11px;color:#4ade80;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="logo"><span>WORK</span>LEDGER</div>
+  <div class="subtitle">GITHUB DEPLOYMENT GUIDE</div>
 
-const initialEmployees = [
-{ id: 1, name: “Aria Chen”,    role: “Senior Dev”,      salaryType: “monthly”, monthlySalary: 95000,  hourlyRate: Math.round(95000/30/8),  color: “#FF6B6B” },
-{ id: 2, name: “Marcus Webb”,  role: “Designer”,        salaryType: “monthly”, monthlySalary: 75000,  hourlyRate: Math.round(75000/30/8),  color: “#4ECDC4” },
-{ id: 3, name: “Priya Nair”,   role: “Product Manager”, salaryType: “monthly”, monthlySalary: 110000, hourlyRate: Math.round(110000/30/8), color: “#FFE66D” },
-{ id: 4, name: “Leo Fontaine”, role: “QA Engineer”,     salaryType: “monthly”, monthlySalary: 65000,  hourlyRate: Math.round(65000/30/8),  color: “#A8E6CF” },
-];
+  <div class="intro">
+    This guide deploys your WorkLedger app to the internet using <strong>GitHub Pages — completely free</strong>.<br/>
+    Your app will live at a permanent URL and your data will save in the browser automatically. No servers, no subscriptions.
+  </div>
 
-const STATUS = {
-present: { label: “Present”,  bg: “#1a3a2a”, color: “#4ade80”, border: “#4ade80” },
-absent:  { label: “Absent”,   bg: “#3a1a1a”, color: “#f87171”, border: “#f87171” },
-halfday: { label: “Half Day”, bg: “#3a2e00”, color: “#facc15”, border: “#facc15” },
-leave:   { label: “Leave”,    bg: “#1a1a3a”, color: “#818cf8”, border: “#818cf8” },
-};
-
-function generateDaysInMonth(year, month) {
-const count = new Date(year, month + 1, 0).getDate();
-return Array.from({ length: count }, (_, i) => {
-const d = new Date(year, month, i + 1);
-return { day: i + 1, weekday: DAYS[d.getDay() === 0 ? 6 : d.getDay() - 1] };
-});
-}
-
-function calcSalary(records, emp, totalDaysInMonth, hoursPerDay = 8) {
-let presentDays = 0, absentDays = 0, leaveDays = 0, halfdayCount = 0, totalHours = 0;
-Object.values(records).forEach(s => {
-if (s === “present”)      { presentDays += 1;   totalHours += hoursPerDay; }
-else if (s === “halfday”) { presentDays += 0.5; halfdayCount += 1; totalHours += hoursPerDay / 2; absentDays += 0.5; }
-else if (s === “leave”)   { leaveDays   += 1;   totalHours += hoursPerDay; }
-else if (s === “absent”)  { absentDays  += 1; }
-});
-const earnedDays = presentDays + leaveDays;
-const dailyRate = emp.salaryType === “monthly” ? emp.monthlySalary / totalDaysInMonth : emp.hourlyRate * hoursPerDay;
-const deduction = Math.round(absentDays * dailyRate);
-const gross = emp.salaryType === “monthly”
-? Math.round(emp.monthlySalary - deduction)
-: Math.round(dailyRate * earnedDays);
-return { totalHours, earnedDays, absentDays, leaveDays, halfdayCount, presentDays: Math.floor(presentDays), gross, deduction, dailyRate: Math.round(dailyRate) };
-}
-
-function LongPressLabel({ label, onLongPress }) {
-const timerRef = useRef(null);
-const [pressing, setPressing] = useState(false);
-function start() { setPressing(true); timerRef.current = setTimeout(() => { setPressing(false); onLongPress(); }, 600); }
-function cancel() { setPressing(false); clearTimeout(timerRef.current); }
-return (
-<div style={{ display: “flex”, flexDirection: “column”, alignItems: “flex-start” }}>
-<span onMouseDown={start} onMouseUp={cancel} onMouseLeave={cancel} onTouchStart={start} onTouchEnd={cancel} title=“Hold to edit”
-style={{ fontSize: 12, color: “#718096”, cursor: “pointer”, userSelect: “none”, padding: “3px 8px”, borderRadius: 6,
-border: `1px solid ${pressing ? "#4ade8060" : "transparent"}`, background: pressing ? “#1a3a1a” : “transparent”, transition: “all 0.15s” }}>
-{label}
-</span>
-</div>
-);
-}
-
-// ── PDF PAYSLIP (printed view for one employee) ──
-function Payslip({ emp, month, year, days, records, calcResult }) {
-const { presentDays, halfdayCount, leaveDays, absentDays, totalHours, gross, deduction, dailyRate } = calcResult;
-const monthName = `${MONTHS[month]} ${year}`;
-const logoColor = emp.color;
-
-return (
-<div className="payslip-page">
-{/* Header */}
-<div className="ps-header">
-<div>
-<div className="ps-company">WORKLEDGER</div>
-<div className="ps-subtitle">Employee Payslip</div>
-</div>
-<div className="ps-period">
-<div className="ps-period-label">PAY PERIOD</div>
-<div className="ps-period-value">{monthName}</div>
-</div>
-</div>
-<div className=“ps-divider” style={{ background: logoColor }} />
+  <div class="steps">
 
 ```
-  {/* Employee Info */}
-  <div className="ps-emp-row">
-    <div className="ps-emp-block">
-      <div className="ps-label">EMPLOYEE NAME</div>
-      <div className="ps-value">{emp.name}</div>
+<!-- STEP 1 -->
+<div class="step">
+  <div class="step-header">
+    <div class="step-num">1</div>
+    <div class="step-title">Download the project ZIP</div>
+  </div>
+  <div class="step-body">
+    Download the <strong>workledger.zip</strong> file (provided alongside this guide) and <strong>unzip it</strong> on your computer. You'll see a folder called <span class="tag">workledger</span> with these files inside:
+    <div class="code">workledger/
+```
+
+├── index.html
+├── package.json
+├── vite.config.js
+├── src/
+│   ├── App.jsx
+│   └── main.jsx
+└── .github/
+└── workflows/
+└── deploy.yml</div>
+</div>
+</div>
+
+```
+<!-- STEP 2 -->
+<div class="step">
+  <div class="step-header">
+    <div class="step-num">2</div>
+    <div class="step-title">Create a free GitHub account</div>
+  </div>
+  <div class="step-body">
+    <ol>
+      <li>Go to <a href="https://github.com" target="_blank">github.com</a></li>
+      <li>Click <strong>Sign up</strong> and create your account</li>
+      <li>Verify your email address</li>
+    </ol>
+    <div class="note">Already have a GitHub account? Skip to Step 3.</div>
+  </div>
+</div>
+
+<!-- STEP 3 -->
+<div class="step">
+  <div class="step-header">
+    <div class="step-num">3</div>
+    <div class="step-title">Create a new repository</div>
+  </div>
+  <div class="step-body">
+    <ol>
+      <li>Click the <strong>+</strong> icon (top-right corner) → <strong>New repository</strong></li>
+      <li>Set the repository name to exactly: <span class="tag">workledger</span></li>
+      <li>Make sure it is set to <strong>Public</strong></li>
+      <li>Leave everything else as default</li>
+      <li>Click <strong>Create repository</strong></li>
+    </ol>
+  </div>
+</div>
+
+<!-- STEP 4 -->
+<div class="step">
+  <div class="step-header">
+    <div class="step-num">4</div>
+    <div class="step-title">Upload all project files</div>
+  </div>
+  <div class="step-body">
+    <ol>
+      <li>In your new empty repository, click <strong>"uploading an existing file"</strong></li>
+      <li>Open the unzipped <span class="tag">workledger</span> folder on your computer</li>
+      <li>Select <strong>all files and folders</strong> inside it and drag them into the GitHub upload area</li>
+      <li>Wait for all files to appear in the list</li>
+      <li>Scroll down and click <strong>Commit changes</strong></li>
+    </ol>
+    <div class="note">⚠️ Make sure to upload the <strong>.github</strong> folder too — it's hidden on Mac/Windows but required for auto-deployment. On Mac, press <strong>Cmd+Shift+.</strong> to show hidden files before dragging.</div>
+  </div>
+</div>
+
+<!-- STEP 5 -->
+<div class="step">
+  <div class="step-header">
+    <div class="step-num">5</div>
+    <div class="step-title">Enable GitHub Pages</div>
+  </div>
+  <div class="step-body">
+    <ol>
+      <li>Go to your repository → click <strong>Settings</strong> (top tab)</li>
+      <li>In the left sidebar, click <strong>Pages</strong></li>
+      <li>Under <strong>Source</strong>, select <strong>GitHub Actions</strong></li>
+      <li>Click <strong>Save</strong></li>
+    </ol>
+    <div class="highlight">✅ That's it! GitHub will now automatically build and deploy your app every time you upload changes.</div>
+  </div>
+</div>
+
+<!-- STEP 6 -->
+<div class="step">
+  <div class="step-header">
+    <div class="step-num">6</div>
+    <div class="step-title">Wait ~2 minutes for first deploy</div>
+  </div>
+  <div class="step-body">
+    <ol>
+      <li>Go to your repository → click the <strong>Actions</strong> tab</li>
+      <li>You'll see a workflow running called <strong>"Deploy WorkLedger"</strong></li>
+      <li>Wait for the yellow circle to turn into a <strong>green checkmark ✅</strong></li>
+    </ol>
+    <div class="note">First deployment takes 1–3 minutes. After that, updates deploy in under 30 seconds.</div>
+  </div>
+</div>
+```
+
+  </div><!-- /steps -->
+
+  <!-- FINAL -->
+
+  <div class="final">
+    <div style="font-size:11px;letter-spacing:3px;color:#4a5568">YOUR APP IS LIVE AT</div>
+    <div class="url">https://YOUR-USERNAME.github.io/workledger</div>
+    <p>Replace <strong>YOUR-USERNAME</strong> with your actual GitHub username</p>
+    <div class="badge">📌 Bookmark this URL — your data saves in your browser automatically</div>
+    <div style="margin-top:20px;font-size:12px;color:#4a5568;line-height:1.7">
+      Data persists in <strong style="color:#e2e8f0">localStorage</strong> — survives refresh, browser close, and reopen.<br/>
+      Works on any device you log into the same browser on.<br/>
+      Export PDFs monthly as a backup.
     </div>
-    <div className="ps-emp-block">
-      <div className="ps-label">DESIGNATION</div>
-      <div className="ps-value">{emp.role}</div>
-    </div>
-    <div className="ps-emp-block">
-      <div className="ps-label">SALARY TYPE</div>
-      <div className="ps-value">{emp.salaryType === "monthly" ? "Monthly" : "Hourly"}</div>
-    </div>
-    <div className="ps-emp-block">
-      <div className="ps-label">{emp.salaryType === "monthly" ? "MONTHLY CTC" : "HOURLY RATE"}</div>
-      <div className="ps-value">₹{emp.salaryType === "monthly" ? emp.monthlySalary.toLocaleString("en-IN") : emp.hourlyRate.toLocaleString("en-IN")}</div>
-    </div>
   </div>
 
-  {/* Attendance Summary */}
-  <div className="ps-section-title">ATTENDANCE SUMMARY</div>
-  <div className="ps-att-grid">
-    {[
-      ["Working Days", days.length],
-      ["Present",      presentDays],
-      ["Half Days",    halfdayCount],
-      ["Paid Leaves",  leaveDays],
-      ["Absent",       absentDays],
-      ["Total Hours",  `${totalHours}h`],
-    ].map(([l, v]) => (
-      <div className="ps-att-cell" key={l}>
-        <div className="ps-att-val">{v}</div>
-        <div className="ps-att-label">{l}</div>
-      </div>
-    ))}
-  </div>
-
-  {/* Attendance Calendar */}
-  <div className="ps-section-title" style={{ marginTop: 18 }}>ATTENDANCE CALENDAR — {monthName}</div>
-  <div className="ps-cal">
-    {DAYS.map(d => <div key={d} className="ps-cal-head">{d}</div>)}
-    {Array.from({ length: new Date(year, month, 1).getDay() === 0 ? 6 : new Date(year, month, 1).getDay() - 1 }).map((_, i) => (
-      <div key={`e${i}`} />
-    ))}
-    {days.map(({ day, weekday }) => {
-      const s = records[day];
-      const isWeekend = weekday === "Sat" || weekday === "Sun";
-      const cls = s ? `ps-cal-day ps-day-${s}` : `ps-cal-day ${isWeekend ? "ps-day-weekend" : "ps-day-empty"}`;
-      return (
-        <div key={day} className={cls}>
-          <span>{day}</span>
-          {s && <span className="ps-day-dot" />}
-        </div>
-      );
-    })}
-  </div>
-  <div className="ps-cal-legend">
-    {Object.entries(STATUS).map(([k, v]) => (
-      <span key={k} className="ps-leg-item"><span className={`ps-leg-dot ps-day-${k}`} />{v.label}</span>
-    ))}
-  </div>
-
-  {/* Earnings & Deductions */}
-  <div className="ps-section-title" style={{ marginTop: 18 }}>EARNINGS & DEDUCTIONS</div>
-  <table className="ps-table">
-    <thead>
-      <tr><th>Description</th><th>Days</th><th>Rate / Day</th><th>Amount</th></tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td>Basic Salary ({monthName})</td>
-        <td>{days.length}</td>
-        <td>₹{dailyRate.toLocaleString("en-IN")}</td>
-        <td>₹{emp.monthlySalary.toLocaleString("en-IN")}</td>
-      </tr>
-      {leaveDays > 0 && (
-        <tr className="ps-row-paid">
-          <td>Paid Leave</td>
-          <td>{leaveDays}</td>
-          <td>₹{dailyRate.toLocaleString("en-IN")}</td>
-          <td>Included</td>
-        </tr>
-      )}
-      {absentDays > 0 && (
-        <tr className="ps-row-deduct">
-          <td>Absent Deduction</td>
-          <td>-{absentDays}</td>
-          <td>₹{dailyRate.toLocaleString("en-IN")}</td>
-          <td>- ₹{deduction.toLocaleString("en-IN")}</td>
-        </tr>
-      )}
-    </tbody>
-  </table>
-
-  {/* Net Pay */}
-  <div className="ps-net">
-    <div className="ps-net-label">NET PAY FOR {monthName.toUpperCase()}</div>
-    <div className="ps-net-amount" style={{ color: logoColor }}>₹{gross.toLocaleString("en-IN")}</div>
-  </div>
-
-  <div className="ps-footer">
-    This is a system-generated payslip. · WorkLedger · {new Date().toLocaleDateString("en-IN")}
-  </div>
 </div>
-```
-
-);
-}
-
-// ── PDF FULL PAYROLL REPORT ──
-function PayrollReport({ employees, month, year, days, getRecords }) {
-const monthName = `${MONTHS[month]} ${year}`;
-const allData = employees.map(e => {
-const records = getRecords(e.id);
-const result = calcSalary(records, e, days.length);
-return { …e, …result, records };
-});
-const totalGross = allData.reduce((a, e) => a + e.gross, 0);
-const totalHoursAll = allData.reduce((a, e) => a + e.totalHours, 0);
-
-return (
-<div className="payslip-page">
-<div className="ps-header">
-<div>
-<div className="ps-company">WORKLEDGER</div>
-<div className="ps-subtitle">Payroll Summary Report</div>
-</div>
-<div className="ps-period">
-<div className="ps-period-label">PAY PERIOD</div>
-<div className="ps-period-value">{monthName}</div>
-</div>
-</div>
-<div className=“ps-divider” style={{ background: “#4ade80” }} />
-
-```
-  <div className="ps-emp-row" style={{ marginBottom: 20 }}>
-    {[
-      ["TOTAL PAYROLL",  `₹${totalGross.toLocaleString("en-IN")}`],
-      ["TOTAL EMPLOYEES", employees.length],
-      ["TOTAL HOURS",    `${totalHoursAll}h`],
-      ["PAY PERIOD",     monthName],
-    ].map(([l, v]) => (
-      <div className="ps-emp-block" key={l}>
-        <div className="ps-label">{l}</div>
-        <div className="ps-value" style={{ fontSize: 18 }}>{v}</div>
-      </div>
-    ))}
-  </div>
-
-  <div className="ps-section-title">EMPLOYEE WISE BREAKDOWN</div>
-  <table className="ps-table" style={{ marginTop: 8 }}>
-    <thead>
-      <tr>
-        <th>Employee</th>
-        <th>Role</th>
-        <th>Present</th>
-        <th>Absent</th>
-        <th>Half Day</th>
-        <th>Leave</th>
-        <th>Hours</th>
-        <th>Deduction</th>
-        <th>Net Pay</th>
-      </tr>
-    </thead>
-    <tbody>
-      {allData.map(e => (
-        <tr key={e.id}>
-          <td><strong>{e.name}</strong></td>
-          <td>{e.role}</td>
-          <td>{e.presentDays}</td>
-          <td>{e.absentDays}</td>
-          <td>{e.halfdayCount}</td>
-          <td>{e.leaveDays}</td>
-          <td>{e.totalHours}h</td>
-          <td className="ps-row-deduct">₹{e.deduction.toLocaleString("en-IN")}</td>
-          <td><strong>₹{e.gross.toLocaleString("en-IN")}</strong></td>
-        </tr>
-      ))}
-    </tbody>
-    <tfoot>
-      <tr className="ps-total-row">
-        <td colSpan={6}><strong>TOTAL</strong></td>
-        <td><strong>{totalHoursAll}h</strong></td>
-        <td><strong>₹{allData.reduce((a,e)=>a+e.deduction,0).toLocaleString("en-IN")}</strong></td>
-        <td><strong>₹{totalGross.toLocaleString("en-IN")}</strong></td>
-      </tr>
-    </tfoot>
-  </table>
-
-  <div className="ps-footer" style={{ marginTop: 24 }}>
-    This is a system-generated payroll report. · WorkLedger · Generated on {new Date().toLocaleDateString("en-IN")}
-  </div>
-</div>
-```
-
-);
-}
-
-export default function App() {
-const now = new Date();
-const [year, setYear]             = useState(now.getFullYear());
-const [month, setMonth]           = useState(now.getMonth());
-const [attendance, setAttendance] = useState({});
-const [selectedEmp, setSelectedEmp] = useState(null);
-const [employees, setEmployees]   = useState([]);
-const [loaded, setLoaded]         = useState(false);
-const [view, setView]             = useState(“attendance”);
-const [newEmp, setNewEmp]         = useState({ name: “”, role: “”, salaryType: “monthly”, monthlySalary: “”, hourlyRate: “” });
-const [editingSalary, setEditingSalary] = useState(null);
-const [toast, setToast]           = useState(null);
-const [confirmDelete, setConfirmDelete] = useState(null); // empId pending delete
-const [reportType, setReportType] = useState(“payroll”);
-const printRef = useRef(null);
-
-// ── Load from persistent storage on mount ──
-useEffect(() => {
-async function load() {
-try {
-const empRes = await window.storage.get(“wl-employees”);
-const attRes = await window.storage.get(“wl-attendance”);
-const emps = empRes ? JSON.parse(empRes.value) : initialEmployees;
-const att  = attRes ? JSON.parse(attRes.value) : {};
-setEmployees(emps);
-setAttendance(att);
-setSelectedEmp(emps[0]?.id || null);
-} catch {
-setEmployees(initialEmployees);
-setSelectedEmp(initialEmployees[0].id);
-}
-setLoaded(true);
-}
-load();
-}, []);
-
-// ── Persist employees whenever they change ──
-useEffect(() => {
-if (!loaded) return;
-window.storage.set(“wl-employees”, JSON.stringify(employees)).catch(() => {});
-}, [employees, loaded]);
-
-// ── Persist attendance whenever it changes ──
-useEffect(() => {
-if (!loaded) return;
-window.storage.set(“wl-attendance”, JSON.stringify(attendance)).catch(() => {});
-}, [attendance, loaded]);
-
-const days = useMemo(() => generateDaysInMonth(year, month), [year, month]);
-const emp  = employees.find(e => e.id === selectedEmp);
-
-function getKey(empId, day) { return `${empId}-${year}-${month}-${day}`; }
-function getStatus(empId, day) { return attendance[getKey(empId, day)] || null; }
-function getRecords(empId) {
-const r = {};
-days.forEach(({ day }) => { const s = getStatus(empId, day); if (s) r[day] = s; });
-return r;
-}
-
-function cycleStatus(empId, day) {
-const key = getKey(empId, day);
-const order = [“present”, “absent”, “halfday”, “leave”];
-const cur = attendance[key];
-const next = cur ? order[(order.indexOf(cur) + 1) % order.length] : “present”;
-setAttendance(prev => ({ …prev, [key]: next }));
-}
-
-function markAll(status) {
-const updates = {};
-days.forEach(({ day }) => { updates[getKey(selectedEmp, day)] = status; });
-setAttendance(prev => ({ …prev, …updates }));
-showToast(`All days marked as ${STATUS[status].label}`);
-}
-
-function showToast(msg) { setToast(msg); setTimeout(() => setToast(null), 2500); }
-
-function toggleSalaryType(empId) {
-setEmployees(prev => prev.map(e => {
-if (e.id !== empId) return e;
-const newType = e.salaryType === “monthly” ? “hourly” : “monthly”;
-return { …e, salaryType: newType, hourlyRate: Math.round(e.monthlySalary / 30 / 8) };
-}));
-}
-
-function startEditSalary(emp) {
-setEditingSalary({ empId: emp.id, value: String(emp.salaryType === “monthly” ? emp.monthlySalary : emp.hourlyRate) });
-}
-
-function commitSalary() {
-if (!editingSalary) return;
-const val = Number(editingSalary.value);
-if (!val || val <= 0) { setEditingSalary(null); return; }
-setEmployees(prev => prev.map(e => {
-if (e.id !== editingSalary.empId) return e;
-if (e.salaryType === “monthly”) return { …e, monthlySalary: val, hourlyRate: Math.round(val / 30 / 8) };
-return { …e, hourlyRate: val, monthlySalary: val * 8 * 30 };
-}));
-showToast(“Salary updated!”);
-setEditingSalary(null);
-}
-
-function addEmployee() {
-const { name, role, salaryType, monthlySalary, hourlyRate } = newEmp;
-if (!name || !role) return;
-if (salaryType === “monthly” && !monthlySalary) return;
-if (salaryType === “hourly”  && !hourlyRate) return;
-const colors = [”#FF9F43”,”#48dbfb”,”#ff6b81”,”#1dd1a1”,”#feca57”];
-const e = { id: Date.now(), name, role, salaryType, monthlySalary: Number(monthlySalary)||0, hourlyRate: Number(hourlyRate)||0, color: colors[employees.length % colors.length] };
-setEmployees(prev => […prev, e]);
-setNewEmp({ name: “”, role: “”, salaryType: “monthly”, monthlySalary: “”, hourlyRate: “” });
-setSelectedEmp(e.id);
-setView(“attendance”);
-showToast(“Employee added!”);
-}
-
-function deleteEmployee(empId) {
-const remaining = employees.filter(e => e.id !== empId);
-setEmployees(remaining);
-if (selectedEmp === empId) setSelectedEmp(remaining[0]?.id || null);
-// Remove all attendance records for this employee
-setAttendance(prev => {
-const next = { …prev };
-Object.keys(next).forEach(k => { if (k.startsWith(`${empId}-`)) delete next[k]; });
-return next;
-});
-showToast(“Employee removed”);
-}
-
-function printReport() {
-window.print();
-}
-
-const summaryData = useMemo(() => {
-return employees.map(e => {
-const records = getRecords(e.id);
-const counts = { present: 0, absent: 0, halfday: 0, leave: 0 };
-Object.values(records).forEach(s => { if (counts[s] !== undefined) counts[s]++; });
-const result = calcSalary(records, e, days.length);
-return { …e, counts, …result, records };
-});
-}, [employees, attendance, days]);
-
-const currentRecords = getRecords(selectedEmp);
-const { totalHours, earnedDays, gross } = calcSalary(currentRecords, emp || { salaryType: “monthly”, monthlySalary: 0, hourlyRate: 0 }, days.length);
-
-function prevMonth() { if (month === 0) { setMonth(11); setYear(y => y-1); } else setMonth(m => m-1); }
-function nextMonth() { if (month === 11) { setMonth(0); setYear(y => y+1); } else setMonth(m => m+1); }
-function rateLabel(e) { return e.salaryType === “monthly” ? `₹${e.monthlySalary.toLocaleString("en-IN")}/mo` : `₹${e.hourlyRate}/hr`; }
-
-const inputStyle = { width: “100%”, padding: “12px 16px”, background: “#0d0d14”, border: “1px solid #1a1a2e”, borderRadius: 8, color: “#e2e8f0”, fontFamily: “inherit”, fontSize: 14, transition: “border-color 0.2s” };
-
-// Which employee payslip to show in report view
-const reportEmp = reportType !== “payroll” ? employees.find(e => e.id === reportType) : null;
-const reportEmpRecords = reportEmp ? getRecords(reportEmp.id) : {};
-const reportEmpResult  = reportEmp ? calcSalary(reportEmpRecords, reportEmp, days.length) : null;
-
-if (!loaded) return (
-<div style={{ minHeight: “100vh”, background: “#0a0a0f”, display: “flex”, alignItems: “center”, justifyContent: “center”,
-fontFamily: “‘DM Mono’, monospace”, color: “#4ade80”, fontSize: 14, letterSpacing: “4px” }}>
-LOADING…
-</div>
-);
-
-return (
-<div style={{ minHeight: “100vh”, background: “#0a0a0f”, fontFamily: “‘DM Mono’, ‘Courier New’, monospace”, color: “#e2e8f0”,
-backgroundImage: “radial-gradient(ellipse at 20% 50%, #0d1f1a 0%, transparent 60%), radial-gradient(ellipse at 80% 20%, #0f0d1f 0%, transparent 60%)” }}>
-<style>{`
-@import url(‘https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@700;800&display=swap’);
-* { box-sizing: border-box; margin: 0; padding: 0; }
-::-webkit-scrollbar { width: 4px; height: 4px; }
-::-webkit-scrollbar-track { background: #0a0a0f; }
-::-webkit-scrollbar-thumb { background: #2a2a3a; border-radius: 2px; }
-.day-cell:hover { transform: scale(1.08); z-index: 10; }
-.day-cell { transition: all 0.15s ease; cursor: pointer; }
-.emp-card:hover { border-color: rgba(255,255,255,0.2) !important; }
-.emp-card { transition: all 0.2s ease; cursor: pointer; }
-.nav-btn:hover { background: rgba(255,255,255,0.08) !important; }
-.nav-btn { transition: all 0.15s; cursor: pointer; }
-.tab-btn { transition: all 0.2s; cursor: pointer; }
-.action-btn:hover { opacity: 0.85; transform: translateY(-1px); }
-.action-btn { transition: all 0.15s; cursor: pointer; }
-input:focus { outline: none; border-color: #4ade80 !important; }
-@keyframes slideIn { from { opacity:0; transform:translateY(-10px); } to { opacity:1; transform:translateY(0); } }
-@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.6; } }
-
-```
-    /* ── PRINT STYLES ── */
-    @media print {
-      body * { visibility: hidden !important; }
-      #print-area, #print-area * { visibility: visible !important; }
-      #print-area { position: fixed; top: 0; left: 0; width: 100%; background: white !important; }
-      .payslip-page { page-break-after: always; padding: 32px 40px; background: white; color: #111; }
-      .payslip-page:last-child { page-break-after: avoid; }
-    }
-
-    /* ── PAYSLIP STYLES ── */
-    .payslip-page { background: white; color: #111; padding: 32px 40px; font-family: 'DM Mono', monospace; max-width: 800px; margin: 0 auto 40px; border-radius: 12px; }
-    .ps-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
-    .ps-company { font-family: 'Syne', sans-serif; font-size: 26px; font-weight: 800; letter-spacing: -1px; color: #0a0a0f; }
-    .ps-subtitle { font-size: 11px; color: #888; letter-spacing: 2px; margin-top: 2px; }
-    .ps-period { text-align: right; }
-    .ps-period-label { font-size: 10px; color: #888; letter-spacing: 2px; }
-    .ps-period-value { font-size: 18px; font-weight: 700; font-family: 'Syne', sans-serif; color: #111; margin-top: 2px; }
-    .ps-divider { height: 3px; border-radius: 2px; margin-bottom: 20px; }
-    .ps-emp-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; background: #f8f9fa; border-radius: 8px; padding: 16px 20px; margin-bottom: 24px; }
-    .ps-label { font-size: 9px; letter-spacing: 2px; color: #888; margin-bottom: 4px; }
-    .ps-value { font-size: 14px; font-weight: 600; color: #111; }
-    .ps-section-title { font-size: 10px; letter-spacing: 2px; color: #888; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid #e5e7eb; }
-    .ps-att-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 4px; }
-    .ps-att-cell { background: #f8f9fa; border-radius: 8px; padding: 12px; text-align: center; }
-    .ps-att-val { font-size: 22px; font-weight: 700; font-family: 'Syne', sans-serif; color: #111; }
-    .ps-att-label { font-size: 9px; color: #888; margin-top: 2px; letter-spacing: 1px; }
-
-    /* Calendar in payslip */
-    .ps-cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 8px; }
-    .ps-cal-head { text-align: center; font-size: 9px; color: #aaa; letter-spacing: 1px; padding-bottom: 4px; }
-    .ps-cal-day { aspect-ratio: 1; border-radius: 5px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 11px; border: 1px solid #f0f0f0; color: #ccc; background: #fafafa; }
-    .ps-day-present  { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
-    .ps-day-absent   { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
-    .ps-day-halfday  { background: #fefce8; border-color: #fef08a; color: #854d0e; }
-    .ps-day-leave    { background: #eff6ff; border-color: #bfdbfe; color: #1e40af; }
-    .ps-day-weekend  { background: #f9fafb; color: #d1d5db; }
-    .ps-day-empty    { background: #fafafa; color: #e5e7eb; }
-    .ps-day-dot      { width: 3px; height: 3px; border-radius: 50%; background: currentColor; margin-top: 1px; }
-    .ps-cal-legend   { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 6px; margin-bottom: 4px; }
-    .ps-leg-item     { display: flex; align-items: center; gap: 5px; font-size: 10px; color: #555; }
-    .ps-leg-dot      { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
-
-    /* Table */
-    .ps-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 4px; }
-    .ps-table th { background: #f8f9fa; padding: 8px 12px; text-align: left; font-size: 10px; letter-spacing: 1px; color: #888; border-bottom: 2px solid #e5e7eb; }
-    .ps-table td { padding: 10px 12px; border-bottom: 1px solid #f0f0f0; color: #333; }
-    .ps-row-paid td  { color: #166534; }
-    .ps-row-deduct td { color: #991b1b; }
-    .ps-total-row td { background: #f8f9fa; font-size: 12px; padding: 10px 12px; }
-
-    /* Net Pay */
-    .ps-net { display: flex; justify-content: space-between; align-items: center; background: #f8f9fa; border-radius: 10px; padding: 20px 24px; margin-top: 20px; border: 2px solid #e5e7eb; }
-    .ps-net-label { font-size: 11px; letter-spacing: 2px; color: #888; }
-    .ps-net-amount { font-size: 32px; font-weight: 800; font-family: 'Syne', sans-serif; }
-    .ps-footer { font-size: 10px; color: #bbb; text-align: center; margin-top: 24px; padding-top: 12px; border-top: 1px solid #f0f0f0; }
-  `}</style>
-
-  {toast && (
-    <div style={{ position: "fixed", top: 24, right: 24, zIndex: 999, background: "#1a2a1a", border: "1px solid #4ade80", color: "#4ade80",
-      padding: "10px 20px", borderRadius: 8, fontSize: 13, animation: "slideIn 0.3s ease", fontFamily: "inherit" }}>{toast}</div>
-  )}
-
-  {/* ── PRINT AREA (hidden in screen, visible on print) ── */}
-  <div id="print-area" style={{ display: "none" }}>
-    {reportType === "payroll" ? (
-      <PayrollReport employees={employees} month={month} year={year} days={days} getRecords={id => getRecords(id)} />
-    ) : reportEmp ? (
-      <Payslip emp={reportEmp} month={month} year={year} days={days} records={reportEmpRecords} calcResult={reportEmpResult} />
-    ) : null}
-  </div>
-
-  {/* Header */}
-  <div style={{ padding: "28px 32px 0", borderBottom: "1px solid #1a1a2e" }}>
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", maxWidth: 1200, margin: "0 auto" }}>
-      <div>
-        <h1 style={{ fontFamily: "'Syne', sans-serif", fontSize: 28, fontWeight: 800, letterSpacing: "-1px", lineHeight: 1 }}>
-          <span style={{ color: "#4ade80" }}>WORK</span>LEDGER
-        </h1>
-        <p style={{ fontSize: 11, color: "#4a5568", marginTop: 4, letterSpacing: "2px" }}>ATTENDANCE · SALARY CALCULATOR</p>
-      </div>
-      <div style={{ display: "flex", gap: 4, background: "#111118", borderRadius: 10, padding: 4, border: "1px solid #1a1a2e" }}>
-        {[["attendance","⊞ Attendance"], ["summary","◈ Summary"], ["reports","⬇ Reports"], ["addEmp","+ Add Employee"]].map(([v, l]) => (
-          <button key={v} className="tab-btn" onClick={() => setView(v)} style={{
-            padding: "8px 16px", borderRadius: 7, border: "none", fontSize: 12,
-            background: view === v ? "#1a2a1a" : "transparent",
-            color: view === v ? "#4ade80" : "#4a5568",
-            fontFamily: "inherit", letterSpacing: "0.5px",
-            borderLeft: view === v ? "2px solid #4ade80" : "2px solid transparent"
-          }}>{l}</button>
-        ))}
-      </div>
-    </div>
-    {view !== "addEmp" && (
-      <div style={{ display: "flex", alignItems: "center", gap: 16, maxWidth: 1200, margin: "20px auto 0", paddingBottom: 20 }}>
-        <button className="nav-btn" onClick={prevMonth} style={{ background: "#111118", border: "1px solid #1a1a2e", color: "#e2e8f0", borderRadius: 8, padding: "6px 14px", fontFamily: "inherit", fontSize: 16 }}>‹</button>
-        <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 18, minWidth: 160, textAlign: "center" }}>{MONTHS[month]} {year}</span>
-        <button className="nav-btn" onClick={nextMonth} style={{ background: "#111118", border: "1px solid #1a1a2e", color: "#e2e8f0", borderRadius: 8, padding: "6px 14px", fontFamily: "inherit", fontSize: 16 }}>›</button>
-      </div>
-    )}
-  </div>
-
-  <div style={{ maxWidth: 1200, margin: "0 auto", padding: "24px 32px" }}>
-
-    {/* ── ATTENDANCE VIEW ── */}
-    {view === "attendance" && (
-      <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 24 }}>
-        <div>
-          <p style={{ fontSize: 10, letterSpacing: "2px", color: "#4a5568", marginBottom: 12 }}>EMPLOYEES</p>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {employees.map(e => {
-              const recs = getRecords(e.id);
-              const { gross } = calcSalary(recs, e, days.length);
-              return (
-                <div key={e.id} className="emp-card" onClick={() => setSelectedEmp(e.id)} style={{
-                  padding: "14px 16px", borderRadius: 10, background: selectedEmp === e.id ? "#111820" : "#0d0d14",
-                  border: `1px solid ${selectedEmp === e.id ? e.color + "60" : "#1a1a2e"}`, borderLeft: `3px solid ${e.color}`
-                }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span style={{ fontWeight: 500, fontSize: 14 }}>{e.name}</span>
-                    <span style={{ fontSize: 9, letterSpacing: "1px", padding: "2px 6px", borderRadius: 4,
-                      background: e.salaryType === "monthly" ? "#1a2a3a" : "#2a1a3a",
-                      color: e.salaryType === "monthly" ? "#60a5fa" : "#c084fc",
-                      border: `1px solid ${e.salaryType === "monthly" ? "#60a5fa40" : "#c084fc40"}`
-                    }}>{e.salaryType === "monthly" ? "MONTHLY" : "HOURLY"}</span>
-                  </div>
-                  <div style={{ fontSize: 11, color: "#4a5568", marginTop: 2 }}>{e.role}</div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
-                    <span style={{ fontSize: 12, color: e.color }}>₹{gross.toLocaleString("en-IN")} earned</span>
-                    <span style={{ fontSize: 10, color: "#4a5568" }}>{rateLabel(e)}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <div style={{ marginTop: 24 }}>
-            <p style={{ fontSize: 10, letterSpacing: "2px", color: "#4a5568", marginBottom: 10 }}>STATUS LEGEND</p>
-            {Object.entries(STATUS).map(([k, v]) => (
-              <div key={k} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                <div style={{ width: 10, height: 10, borderRadius: 2, background: v.color }} />
-                <span style={{ fontSize: 11, color: "#718096" }}>{v.label}</span>
-              </div>
-            ))}
-            <p style={{ fontSize: 10, color: "#4a5568", marginTop: 10 }}>Click cell to cycle status</p>
-          </div>
-        </div>
-
-        <div>
-          {emp && (
-            <>
-              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
-                <div>
-                  <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: 22, fontWeight: 700 }}>{emp.name}</h2>
-                  <p style={{ fontSize: 12, color: "#4a5568", marginTop: 2 }}>{emp.role} · {totalHours}h worked · {earnedDays} days earned</p>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12 }}>
-                    <span style={{ fontSize: 11, color: "#4a5568" }}>Mode:</span>
-                    <div style={{ display: "flex", background: "#111118", border: "1px solid #1a1a2e", borderRadius: 20, padding: 3 }}>
-                      {["monthly","hourly"].map(t => (
-                        <button key={t} onClick={() => toggleSalaryType(emp.id)} style={{
-                          padding: "5px 14px", borderRadius: 16, border: "none", fontSize: 11,
-                          background: emp.salaryType === t ? (t === "monthly" ? "#1a2a3a" : "#2a1a3a") : "transparent",
-                          color: emp.salaryType === t ? (t === "monthly" ? "#60a5fa" : "#c084fc") : "#4a5568",
-                          fontFamily: "inherit", cursor: "pointer", transition: "all 0.2s"
-                        }}>{t === "monthly" ? "📅 Monthly" : "⏱ Hourly"}</button>
-                      ))}
-                    </div>
-                    {editingSalary?.empId === emp.id ? (
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <span style={{ fontSize: 12, color: "#718096" }}>₹</span>
-                        <input autoFocus type="number" value={editingSalary.value}
-                          onChange={e => setEditingSalary(prev => ({ ...prev, value: e.target.value }))}
-                          onKeyDown={e => { if (e.key === "Enter") commitSalary(); if (e.key === "Escape") setEditingSalary(null); }}
-                          onBlur={commitSalary}
-                          style={{ width: 110, padding: "4px 8px", background: "#0d0d14", border: "1px solid #4ade80", borderRadius: 6, color: "#e2e8f0", fontFamily: "inherit", fontSize: 13 }} />
-                        <span style={{ fontSize: 11, color: "#4a5568" }}>{emp.salaryType === "monthly" ? "/mo" : "/hr"}</span>
-                        <button onClick={commitSalary} style={{ background: "#1a3a1a", border: "1px solid #4ade80", color: "#4ade80", borderRadius: 5, padding: "3px 8px", fontSize: 11, fontFamily: "inherit", cursor: "pointer" }}>✓</button>
-                      </div>
-                    ) : (
-                      <LongPressLabel label={rateLabel(emp)} onLongPress={() => startEditSalary(emp)} />
-                    )}
-                  </div>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: 28, fontFamily: "'Syne', sans-serif", fontWeight: 800, color: emp.color }}>₹{gross.toLocaleString("en-IN")}</div>
-                  <div style={{ fontSize: 11, color: "#4a5568" }}>GROSS SALARY</div>
-                  {emp.salaryType === "monthly" && (
-                    <div style={{ fontSize: 10, color: "#4a5568", marginTop: 3 }}>₹{Math.round(emp.monthlySalary / days.length).toLocaleString("en-IN")}/day rate</div>
-                  )}
-                </div>
-              </div>
-
-              <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
-                {Object.entries(STATUS).map(([k, v]) => (
-                  <button key={k} className="action-btn" onClick={() => markAll(k)} style={{
-                    padding: "5px 12px", borderRadius: 6, border: `1px solid ${v.border}40`,
-                    background: v.bg, color: v.color, fontSize: 11, fontFamily: "inherit", cursor: "pointer"
-                  }}>All {v.label}</button>
-                ))}
-              </div>
-
-              <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
-                {Object.entries(STATUS).map(([k, v]) => {
-                  const count = days.filter(({ day }) => getStatus(emp.id, day) === k).length;
-                  return (
-                    <div key={k} style={{ flex: 1, background: v.bg, border: `1px solid ${v.border}30`, borderRadius: 8, padding: "10px 12px" }}>
-                      <div style={{ fontSize: 20, fontWeight: 700, color: v.color, fontFamily: "'Syne', sans-serif" }}>{count}</div>
-                      <div style={{ fontSize: 10, color: v.color + "99", marginTop: 1 }}>{v.label}</div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6 }}>
-                {DAYS.map(d => <div key={d} style={{ textAlign: "center", fontSize: 10, letterSpacing: "1px", color: "#4a5568", paddingBottom: 6 }}>{d}</div>)}
-                {Array.from({ length: new Date(year, month, 1).getDay() === 0 ? 6 : new Date(year, month, 1).getDay() - 1 }).map((_, i) => <div key={`e${i}`} />)}
-                {days.map(({ day, weekday }) => {
-                  const status = getStatus(emp.id, day);
-                  const s = status ? STATUS[status] : null;
-                  const isWeekend = weekday === "Sat" || weekday === "Sun";
-                  const isToday = day === now.getDate() && month === now.getMonth() && year === now.getFullYear();
-                  return (
-                    <div key={day} className="day-cell" onClick={() => cycleStatus(emp.id, day)} style={{
-                      aspectRatio: "1", borderRadius: 8, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-                      background: s ? s.bg : isWeekend ? "#0f0f1a" : "#111118",
-                      border: isToday ? "2px solid #e2e8f0" : s ? `1px solid ${s.border}40` : "1px solid #1a1a2e",
-                      position: "relative", userSelect: "none"
-                    }}>
-                      <span style={{ fontSize: 13, fontWeight: isToday ? 700 : 400, color: s ? s.color : isWeekend ? "#2a2a3a" : "#718096" }}>{day}</span>
-                      {s && <div style={{ width: 4, height: 4, borderRadius: "50%", background: s.color, marginTop: 2, animation: status === "present" ? "pulse 2s infinite" : "none" }} />}
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    )}
-
-    {/* ── SUMMARY VIEW ── */}
-    {view === "summary" && (
-      <div>
-        <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: 22, fontWeight: 700, marginBottom: 24 }}>Payroll Summary — {MONTHS[month]} {year}</h2>
-        <div style={{ background: "#0d1f15", border: "1px solid #1a3a25", borderRadius: 12, padding: "20px 24px", marginBottom: 24, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div>
-            <p style={{ fontSize: 11, letterSpacing: "2px", color: "#4ade80" }}>TOTAL PAYROLL</p>
-            <p style={{ fontFamily: "'Syne', sans-serif", fontSize: 36, fontWeight: 800, color: "#4ade80" }}>₹{summaryData.reduce((a, e) => a + e.gross, 0).toLocaleString("en-IN")}</p>
-          </div>
-          <div style={{ display: "flex", gap: 24 }}>
-            <div style={{ textAlign: "right" }}>
-              <p style={{ fontSize: 11, color: "#4a5568" }}>TOTAL HOURS</p>
-              <p style={{ fontSize: 24, fontWeight: 700 }}>{summaryData.reduce((a, e) => a + e.totalHours, 0)}h</p>
-            </div>
-            <div style={{ textAlign: "right" }}>
-              <p style={{ fontSize: 11, color: "#4a5568" }}>EMPLOYEES</p>
-              <p style={{ fontSize: 24, fontWeight: 700 }}>{employees.length}</p>
-            </div>
-          </div>
-        </div>
-        <div style={{ background: "#0d0d14", border: "1px solid #1a1a2e", borderRadius: 12, overflow: "hidden" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr 1.5fr", padding: "12px 20px", borderBottom: "1px solid #1a1a2e", fontSize: 10, letterSpacing: "2px", color: "#4a5568" }}>
-            <span>EMPLOYEE</span><span>PRESENT</span><span>ABSENT</span><span>HALF DAY</span><span>LEAVE</span><span>HOURS</span><span>GROSS SALARY</span>
-          </div>
-          {summaryData.map((e, i) => (
-            <div key={e.id} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr 1.5fr", padding: "16px 20px", borderBottom: i < summaryData.length - 1 ? "1px solid #1a1a2e" : "none", alignItems: "center" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ width: 8, height: 32, borderRadius: 4, background: e.color }} />
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: 14 }}>{e.name}</div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
-                    <span style={{ fontSize: 11, color: "#4a5568" }}>{e.role} · {rateLabel(e)}</span>
-                    <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 3, background: e.salaryType === "monthly" ? "#1a2a3a" : "#2a1a3a", color: e.salaryType === "monthly" ? "#60a5fa" : "#c084fc" }}>{e.salaryType.toUpperCase()}</span>
-                  </div>
-                </div>
-              </div>
-              <span style={{ color: "#4ade80" }}>{e.counts.present}</span>
-              <span style={{ color: "#f87171" }}>{e.counts.absent}</span>
-              <span style={{ color: "#facc15" }}>{e.counts.halfday}</span>
-              <span style={{ color: "#818cf8" }}>{e.counts.leave}</span>
-              <span style={{ color: "#a0aec0" }}>{e.totalHours}h</span>
-              <div>
-                <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 18, color: e.color }}>₹{e.gross.toLocaleString("en-IN")}</div>
-                <div style={{ fontSize: 10, color: "#4a5568" }}>{e.earnedDays} / {days.length} days paid</div>
-              </div>
-            </div>
-          ))}
-        </div>
-        <p style={{ fontSize: 11, color: "#4a5568", marginTop: 16 }}>
-          * Monthly: gross = full salary − (absent days × daily rate) · Leave = paid in full · Half Day = 0.5 day deducted · Absent = full day deducted · Hourly: gross = hours × rate
-        </p>
-      </div>
-    )}
-
-    {/* ── REPORTS VIEW ── */}
-    {view === "reports" && (
-      <div>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28 }}>
-          <div>
-            <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: 22, fontWeight: 700 }}>Reports</h2>
-            <p style={{ fontSize: 12, color: "#4a5568", marginTop: 4 }}>Select a report type, preview it, then export as PDF</p>
-          </div>
-          <button className="action-btn" onClick={printReport} style={{
-            padding: "12px 24px", background: "#1a3a1a", border: "1px solid #4ade80",
-            color: "#4ade80", borderRadius: 8, fontSize: 13, fontFamily: "inherit",
-            fontWeight: 500, letterSpacing: "1px", display: "flex", alignItems: "center", gap: 8
-          }}>⬇ Export PDF</button>
-        </div>
-
-        {/* Report type selector */}
-        <div style={{ display: "flex", gap: 10, marginBottom: 28, flexWrap: "wrap" }}>
-          <button onClick={() => setReportType("payroll")} style={{
-            padding: "10px 18px", borderRadius: 8, border: `1px solid ${reportType === "payroll" ? "#4ade80" : "#1a1a2e"}`,
-            background: reportType === "payroll" ? "#1a3a1a" : "#0d0d14",
-            color: reportType === "payroll" ? "#4ade80" : "#4a5568",
-            fontFamily: "inherit", fontSize: 12, cursor: "pointer", transition: "all 0.2s"
-          }}>📊 Full Payroll Report</button>
-          {employees.map(e => (
-            <button key={e.id} onClick={() => setReportType(e.id)} style={{
-              padding: "10px 18px", borderRadius: 8,
-              border: `1px solid ${reportType === e.id ? e.color + "80" : "#1a1a2e"}`,
-              background: reportType === e.id ? "#111820" : "#0d0d14",
-              color: reportType === e.id ? e.color : "#4a5568",
-              fontFamily: "inherit", fontSize: 12, cursor: "pointer", transition: "all 0.2s",
-              borderLeft: `3px solid ${e.color}`
-            }}>🧾 {e.name}</button>
-          ))}
-        </div>
-
-        {/* Preview */}
-        <div style={{ background: "#111118", border: "1px solid #1a1a2e", borderRadius: 12, padding: 24, overflowX: "auto" }}>
-          <p style={{ fontSize: 10, letterSpacing: "2px", color: "#4a5568", marginBottom: 16 }}>PREVIEW — {MONTHS[month]} {year}</p>
-          {reportType === "payroll" ? (
-            <PayrollReport employees={employees} month={month} year={year} days={days} getRecords={id => getRecords(id)} />
-          ) : reportEmp ? (
-            <Payslip emp={reportEmp} month={month} year={year} days={days} records={reportEmpRecords} calcResult={reportEmpResult} />
-          ) : null}
-        </div>
-      </div>
-    )}
-
-    {/* ── ADD EMPLOYEE VIEW ── */}
-    {view === "addEmp" && (
-      <div style={{ maxWidth: 480 }}>
-        <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: 22, fontWeight: 700, marginBottom: 8 }}>Add Employee</h2>
-        <p style={{ fontSize: 12, color: "#4a5568", marginBottom: 28 }}>New team member will appear in the attendance tracker</p>
-        {[["Full Name", "name", "text", "e.g. Ravi Kumar"], ["Role / Department", "role", "text", "e.g. Software Engineer"]].map(([label, key, type, ph]) => (
-          <div key={key} style={{ marginBottom: 20 }}>
-            <label style={{ display: "block", fontSize: 10, letterSpacing: "2px", color: "#4a5568", marginBottom: 8 }}>{label.toUpperCase()}</label>
-            <input type={type} placeholder={ph} value={newEmp[key]} onChange={e => setNewEmp(prev => ({ ...prev, [key]: e.target.value }))} style={inputStyle} />
-          </div>
-        ))}
-        <div style={{ marginBottom: 20 }}>
-          <label style={{ display: "block", fontSize: 10, letterSpacing: "2px", color: "#4a5568", marginBottom: 8 }}>SALARY TYPE</label>
-          <div style={{ display: "flex", gap: 8 }}>
-            {[["monthly","📅 Monthly Salary"],["hourly","⏱ Hourly Rate"]].map(([t, l]) => (
-              <button key={t} onClick={() => setNewEmp(prev => ({ ...prev, salaryType: t }))} style={{
-                flex: 1, padding: "12px", borderRadius: 8,
-                border: `1px solid ${newEmp.salaryType === t ? (t === "monthly" ? "#60a5fa" : "#c084fc") : "#1a1a2e"}`,
-                background: newEmp.salaryType === t ? (t === "monthly" ? "#1a2a3a" : "#2a1a3a") : "#0d0d14",
-                color: newEmp.salaryType === t ? (t === "monthly" ? "#60a5fa" : "#c084fc") : "#4a5568",
-                fontFamily: "inherit", fontSize: 13, cursor: "pointer", transition: "all 0.2s"
-              }}>{l}</button>
-            ))}
-          </div>
-        </div>
-        <div style={{ marginBottom: 20 }}>
-          {newEmp.salaryType === "monthly" ? (
-            <>
-              <label style={{ display: "block", fontSize: 10, letterSpacing: "2px", color: "#4a5568", marginBottom: 8 }}>MONTHLY SALARY (₹)</label>
-              <input type="number" placeholder="e.g. 95000" value={newEmp.monthlySalary}
-                onChange={e => setNewEmp(prev => ({ ...prev, monthlySalary: e.target.value, hourlyRate: Math.round(Number(e.target.value) / 30 / 8) || "" }))}
-                style={inputStyle} />
-              {newEmp.monthlySalary && <p style={{ fontSize: 11, color: "#4a5568", marginTop: 6 }}>Auto hourly: ₹{Math.round(Number(newEmp.monthlySalary) / 30 / 8).toLocaleString("en-IN")}/hr &nbsp;·&nbsp; ₹{Math.round(Number(newEmp.monthlySalary) / 30).toLocaleString("en-IN")}/day</p>}
-            </>
-          ) : (
-            <>
-              <label style={{ display: "block", fontSize: 10, letterSpacing: "2px", color: "#4a5568", marginBottom: 8 }}>HOURLY RATE (₹/HR)</label>
-              <input type="number" placeholder="e.g. 400" value={newEmp.hourlyRate}
-                onChange={e => setNewEmp(prev => ({ ...prev, hourlyRate: e.target.value, monthlySalary: Number(e.target.value) * 8 * 30 || "" }))}
-                style={inputStyle} />
-              {newEmp.hourlyRate && <p style={{ fontSize: 11, color: "#4a5568", marginTop: 6 }}>Auto monthly: ₹{(Number(newEmp.hourlyRate) * 8 * 30).toLocaleString("en-IN")}/mo &nbsp;·&nbsp; ₹{(Number(newEmp.hourlyRate) * 8).toLocaleString("en-IN")}/day</p>}
-            </>
-          )}
-        </div>
-        <button className="action-btn" onClick={addEmployee} style={{ width: "100%", padding: "14px", background: "#1a3a1a", border: "1px solid #4ade80", color: "#4ade80", borderRadius: 8, fontSize: 14, fontFamily: "inherit", fontWeight: 500, letterSpacing: "1px" }}>ADD TO TEAM →</button>
-        <div style={{ marginTop: 40 }}>
-          <p style={{ fontSize: 10, letterSpacing: "2px", color: "#4a5568", marginBottom: 16 }}>CURRENT TEAM ({employees.length})</p>
-          {employees.map(e => (
-            <div key={e.id} style={{ borderBottom: "1px solid #1a1a2e" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ width: 6, height: 6, borderRadius: "50%", background: e.color }} />
-                  <span style={{ fontSize: 14 }}>{e.name}</span>
-                  <span style={{ fontSize: 11, color: "#4a5568" }}>{e.role}</span>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 4, background: e.salaryType === "monthly" ? "#1a2a3a" : "#2a1a3a", color: e.salaryType === "monthly" ? "#60a5fa" : "#c084fc" }}>{e.salaryType.toUpperCase()}</span>
-                  <span style={{ fontSize: 13, color: e.color }}>{rateLabel(e)}</span>
-                  {confirmDelete === e.id ? (
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <span style={{ fontSize: 11, color: "#f87171" }}>Remove?</span>
-                      <button onClick={() => { deleteEmployee(e.id); setConfirmDelete(null); }} style={{
-                        background: "#3a1a1a", border: "1px solid #f87171", color: "#f87171",
-                        borderRadius: 5, padding: "3px 10px", fontSize: 11, fontFamily: "inherit", cursor: "pointer"
-                      }}>Yes</button>
-                      <button onClick={() => setConfirmDelete(null)} style={{
-                        background: "#111118", border: "1px solid #2a2a3a", color: "#4a5568",
-                        borderRadius: 5, padding: "3px 10px", fontSize: 11, fontFamily: "inherit", cursor: "pointer"
-                      }}>No</button>
-                    </div>
-                  ) : (
-                    <button onClick={() => setConfirmDelete(e.id)} style={{
-                      background: "transparent", border: "1px solid #3a1a1a", color: "#f87171",
-                      borderRadius: 5, padding: "3px 8px", fontSize: 11, fontFamily: "inherit", cursor: "pointer"
-                    }}>✕</button>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    )}
-  </div>
-</div>
-```
-
-);
-}
+</body>
+</html>
